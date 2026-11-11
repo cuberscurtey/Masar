@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use App\Models\Role;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -25,13 +26,18 @@ class AuthController extends Controller
             ], 422);
         }
 
+        // الحصول على دور العميل من جدول roles
+        $customerRole = Role::where('name', 'customer')->firstOrFail();
+
+        // إنشاء المستخدم وربطه بدور العميل
         $user = User::create([
             'name' => $request->name,
             'email' => $request->email,
             'password' => Hash::make($request->password),
-            'role' => 'customer',
+            'role_id' => $customerRole->id,
         ]);
 
+        // إنشاء رمز المصادقة
         $token = $user->createToken('auth_token')->plainTextToken;
 
         return response()->json([
@@ -63,6 +69,7 @@ class AuthController extends Controller
         }
 
         $user = Auth::user();
+
         $token = $user->createToken('auth_token')->plainTextToken;
 
         return response()->json([

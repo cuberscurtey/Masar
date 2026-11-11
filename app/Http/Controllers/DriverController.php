@@ -4,11 +4,13 @@ namespace App\Http\Controllers;
 
 use App\Models\Driver;
 use App\Models\User;
+use App\Models\Role;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
+
 class DriverController extends Controller
 {
     // عرض جميع السائقين
@@ -62,12 +64,15 @@ class DriverController extends Controller
 
         $driver = DB::transaction(function () use ($request) {
 
-            // إنشاء حساب المستخدم
+            // الحصول على دور السائق من جدول roles
+            $driverRole = Role::where('name', 'driver')->firstOrFail();
+
+            // إنشاء حساب المستخدم وربطه بدور السائق
             $user = User::create([
                 'name' => $request->full_name,
                 'email' => $request->email,
                 'password' => Hash::make($request->account_password),
-                'role' => 'driver'
+                'role_id' => $driverRole->id,
             ]);
 
             // إنشاء سجل السائق وربطه بالحساب
@@ -178,34 +183,35 @@ class DriverController extends Controller
         return response()->json([
             "message" => "Driver deleted successfully"
         ], 200);
-    
     }
-      public function search(Request $request)
-       {
-    $validator = Validator::make($request->all(), [
-        'search' => 'required|string|max:255',
-    ]);
 
-    if ($validator->fails()) {
+    // البحث عن السائقين
+    public function search(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'search' => 'required|string|max:255',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'message' => 'Validation failed',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        $search = $request->search;
+
+        $drivers = Driver::with('user')
+            ->where(function ($query) use ($search) {
+                $query->where('full_name', 'LIKE', "%{$search}%")
+                    ->orWhere('phone', 'LIKE', "%{$search}%")
+                    ->orWhere('license_number', 'LIKE', "%{$search}%");
+            })
+            ->get();
+
         return response()->json([
-            'message' => 'Validation failed',
-            'errors' => $validator->errors()
-        ], 422);
+            'message' => 'Drivers search completed successfully',
+            'data' => $drivers
+        ], 200);
     }
-
-    $search = $request->search;
-
-    $drivers = Driver::with('user')
-        ->where(function ($query) use ($search) {
-            $query->where('full_name', 'LIKE', "%{$search}%")
-                ->orWhere('phone', 'LIKE', "%{$search}%")
-                ->orWhere('license_number', 'LIKE', "%{$search}%");
-        })
-        ->get();
-
-    return response()->json([
-        'message' => 'Drivers search completed successfully',
-        'data' => $drivers
-    ], 200);
-       }
 }

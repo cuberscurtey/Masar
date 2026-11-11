@@ -8,10 +8,11 @@ use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
-use Laravel\Sanctum\HasApiTokens;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Laravel\Sanctum\HasApiTokens;
 
-#[Fillable(['name', 'email', 'password', 'role'])]
+#[Fillable(['name', 'email', 'password', 'role_id'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {
@@ -26,6 +27,12 @@ class User extends Authenticatable
         ];
     }
 
+    // علاقة المستخدم بدوره
+    public function roleRecord(): BelongsTo
+    {
+        return $this->belongsTo(Role::class, 'role_id');
+    }
+
     // علاقة المستخدم بالحجوزات
     public function bookings(): HasMany
     {
@@ -38,33 +45,47 @@ class User extends Authenticatable
         return $this->hasMany(Payment::class, 'verified_by');
     }
 
-    // التحقق من صلاحية المدير
+    // التحقق من المدير الأعلى
     public function isAdmin(): bool
     {
-        return $this->role === 'admin';
+        return (bool) $this->roleRecord?->is_super_admin;
     }
 
-    // التحقق من صلاحية العميل
+    // التحقق من العميل
     public function isCustomer(): bool
     {
-        return $this->role === 'customer';
+        return $this->roleRecord?->name === 'customer';
     }
 
-    // التحقق من صلاحية السائق
+    // التحقق من السائق
     public function isDriver(): bool
     {
-        return $this->role === 'driver';
+        return $this->roleRecord?->name === 'driver';
     }
 
-    // التحقق من صلاحية مشرف الرحلات
+    // التحقق من مشرف الرحلات
     public function isTripSupervisor(): bool
     {
-        return $this->role === 'trip_supervisor';
+        return $this->roleRecord?->name === 'trip_supervisor';
     }
 
-    // التحقق من صلاحية المحاسب
+    // التحقق من المحاسب
     public function isAccountant(): bool
     {
-        return $this->role === 'accountant';
+        return $this->roleRecord?->name === 'accountant';
+    }
+
+    // التحقق من امتلاك صلاحية معينة
+    public function hasPermission(string $permission): bool
+    {
+        if ($this->roleRecord?->is_super_admin) {
+            return true;
+        }
+
+        return $this->roleRecord()
+            ->whereHas('permissions', function ($query) use ($permission) {
+                $query->where('permissions.name', $permission);
+            })
+            ->exists();
     }
 }
